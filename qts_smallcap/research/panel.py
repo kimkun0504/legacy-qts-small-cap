@@ -61,6 +61,7 @@ def build_weekly_panel(
     across short shell sessions).  Returns ``None`` until the last step has run."""
     con = duckdb.connect(db)
     con.execute("set preserve_insertion_order=false")
+    con.execute("set enable_progress_bar = false")
     # spill to the system temp dir, never to the working directory (a repo on the owner's disk)
     con.execute(f"set temp_directory = '{os.path.join(tempfile.gettempdir(), 'qts_smallcap_duckdb')}'")
     steps = 0
