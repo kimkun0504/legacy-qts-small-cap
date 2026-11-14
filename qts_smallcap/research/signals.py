@@ -167,11 +167,56 @@ def s4_reversal(con, shared: str, local: str) -> pd.DataFrame:
     return con.execute(q).df()
 
 
+def slow_composite(con, shared: str, local: str) -> pd.DataFrame:
+    """Round-2 option A (not pre-registered yet): on the last formation Friday of each month,
+    the mean of centred cross-sectional percentile ranks of earnings yield, book-to-price,
+    gross profitability, minus asset growth and 12-1 momentum (C(d-21) / C(d-252) - 1), for
+    universe names with at least three of the five.  The fundamental panels are the qts PIT
+    panels (visible from the filing date + 1 day); momentum ends a month before F."""
+    _setup(con, shared, local)
+    con.execute(
+        "create or replace temp table me as select max(fdate) fdate from fri group by year(fdate), month(fdate)"
+    )
+    for n in ("earnings_yield", "book_to_price", "gross_profitability", "asset_growth"):
+        # read only the month-end rows of the daily panel (semi-join), one panel at a time
+        con.execute(f"""create or replace temp table {n}_me as
+            select p.date, p.ticker, p.value from read_parquet('{shared}/{n}/year=*/*.parquet') p
+            semi join me on me.fdate = p.date""")
+    q = """
+        with u as (select u.date, u.ticker, c.d from uni u join me on me.fdate = u.date join cal c on c.date = u.date),
+        x as (
+            select u.date, u.ticker,
+                   ey.value ey, bp.value bp, gp.value gp, -ag.value ag_neg,
+                   m1.c / m12.c - 1 mom
+            from u
+            left join earnings_yield_me ey on ey.date = u.date and ey.ticker = u.ticker
+            left join book_to_price_me bp on bp.date = u.date and bp.ticker = u.ticker
+            left join gross_profitability_me gp on gp.date = u.date and gp.ticker = u.ticker
+            left join asset_growth_me ag on ag.date = u.date and ag.ticker = u.ticker
+            left join px2 m1 on m1.ticker = u.ticker and m1.d = u.d - 21
+            left join px2 m12 on m12.ticker = u.ticker and m12.d = u.d - 252)
+        select * from x"""
+    x = con.execute(q).df()
+    comps = ["ey", "bp", "gp", "ag_neg", "mom"]
+    ranks = x.groupby("date")[comps].rank(pct=True) - 0.5
+    n = ranks.notna().sum(axis=1)
+    x["value"] = ranks.mean(axis=1).where(n >= 3)
+    return x.dropna(subset=["value"])[["date", "ticker", "value", *comps]]
+
+
 SIGNALS = {
     "S1a": (s1a_ear, 20),
     "S1b": (s1b_sue, 20),
     "S2": (s2_insider_clusters, 20),
     "S3": (s3_13f_change, 20),
     "S4": (s4_reversal, 5),
+    "A": (slow_composite, 63),  # round 2, option A: test only after the owner picks it
 }
-START = {"S1a": "2003-06-06", "S1b": "2003-06-06", "S4": "2003-06-06", "S2": "2008-02-01", "S3": "2013-08-16"}
+START = {
+    "S1a": "2003-06-06",
+    "S1b": "2003-06-06",
+    "S4": "2003-06-06",
+    "S2": "2008-02-01",
+    "S3": "2013-08-16",
+    "A": "2003-06-06",
+}

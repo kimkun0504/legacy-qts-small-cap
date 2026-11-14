@@ -23,6 +23,8 @@ from qts_smallcap.costs.model import SmallAccountCostModel
 HLZ_T = 3.0
 POSITION_USD = 0.90 * 10_000 / 28  # $321: the $10k sleeve, 28 names, 90 % invested
 MIN_NAMES = 15
+#: horizons present in the weekly panel
+HS = (5, 10, 20, 63)
 
 
 def nw_t(x: np.ndarray, lag: int) -> tuple[float, float, int]:
@@ -69,6 +71,7 @@ class SignalResult:
     win_rate: float
     hedged_mean: float  # minus IWM over the same window
     cost_round_trip_bps: float
+    tail_top1_excess: float | None = None  # top 1 % of the signal (diagnostic: the small-book tail)
     ic_mean: float | None = None
     ic_t: float | None = None
     other_horizons: dict = field(default_factory=dict)
@@ -106,10 +109,11 @@ def evaluate(
     start: str,
     event: bool = False,
     top_frac: float = 0.2,
+    step_days: int = 5,
 ) -> SignalResult:
     t0 = time.time()
     p = panel[panel["date"] >= pd.Timestamp(start)]
-    uni_mean = {h: p.groupby("date")[f"fwd_{h}"].mean() for h in (5, 10, 20)}
+    uni_mean = {h: p.groupby("date")[f"fwd_{h}"].mean() for h in HS}
     x = p.merge(sig[["date", "ticker", "value"]], on=["date", "ticker"], how="inner")
     x = x[x[f"fwd_{horizon}"].notna()]
     if event:
@@ -118,10 +122,10 @@ def evaluate(
         n_wk = x.groupby("date")["value"].transform("size")
         pct = x.groupby("date")["value"].rank(pct=True)
         longs = x[(n_wk >= MIN_NAMES) & (pct > 1.0 - top_frac)].copy()
-    for h in (5, 10, 20):
+    for h in HS:
         longs[f"ex_{h}"] = longs[f"fwd_{h}"] - longs["date"].map(uni_mean[h])
     weekly = longs.groupby("date")[f"ex_{horizon}"].mean()
-    lag = 2 * math.ceil(horizon / 5)
+    lag = 2 * math.ceil(horizon / step_days)
     mean_ex, t, n_weeks = nw_t(weekly.to_numpy(), lag)
     cost_bps = _costs(SmallAccountCostModel(), longs)
     net = longs[f"ex_{horizon}"] - cost_bps / 1e4
@@ -130,11 +134,11 @@ def evaluate(
     raw = longs[f"fwd_{horizon}"]
     years = (weekly.index.max() - weekly.index.min()).days / 365.25
     other = {}
-    for h in (5, 10, 20):
+    for h in HS:
         if h == horizon:
             continue
         wk = longs.groupby("date")[f"ex_{h}"].mean()
-        mh, th, _ = nw_t(wk.to_numpy(), 2 * math.ceil(h / 5))
+        mh, th, _ = nw_t(wk.to_numpy(), 2 * math.ceil(h / step_days))
         other[str(h)] = {"mean_excess": mh, "nw_t": th, "raw_gain_mean": float(longs[f"fwd_{h}"].mean())}
     ic_mean = ic_t = None
     if not event:
@@ -144,6 +148,11 @@ def evaluate(
 
         ics = x.groupby("date")[["value", f"fwd_{horizon}"]].apply(ic).dropna()
         ic_mean, ic_t, _ = nw_t(ics.to_numpy(), lag)
+    tail = None
+    if not event:
+        pct_all = x.groupby("date")["value"].rank(pct=True)
+        t1 = x[pct_all > 0.99]
+        tail = float((t1[f"fwd_{horizon}"] - t1["date"].map(uni_mean[horizon])).mean()) if len(t1) else None
     by_year = {str(y): round(float(v), 5) for y, v in weekly.groupby(weekly.index.year).mean().items()}
     lo, hi = np.nanquantile(raw, [0.05, 0.95])
     return SignalResult(
@@ -168,6 +177,7 @@ def evaluate(
         win_rate=float((raw > 0).mean()),
         hedged_mean=float((longs[f"fwd_{horizon}"] - longs[f"iwm_{horizon}"]).mean()),
         cost_round_trip_bps=float(cost_bps.median()),
+        tail_top1_excess=tail,
         ic_mean=ic_mean,
         ic_t=ic_t,
         other_horizons=other,

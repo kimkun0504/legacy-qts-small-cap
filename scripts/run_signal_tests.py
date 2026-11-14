@@ -38,7 +38,10 @@ def main() -> int:
     for k in a.signals:
         sig = pd.read_parquet(rd / f"signal_{k}.parquet")
         label = a.label or k
-        res = evaluate(label, sig, panel, SIGNALS[k][1], START[k], event=(k == "S2"), top_frac=a.top_frac)
+        step = 21 if k == "A" else 5  # monthly formation for the slow composite
+        res = evaluate(
+            label, sig, panel, SIGNALS[k][1], START[k], event=(k == "S2"), top_frac=a.top_frac, step_days=step
+        )
         (rd / f"results_{label}.json").write_text(json.dumps(asdict(res), indent=1, default=float))
         log_trial(LEDGER, FAMILY, res, kind=a.kind, note=a.note)
         r = res
@@ -48,7 +51,7 @@ def main() -> int:
             f"net/trade {100 * r.net_excess_per_trade:.2f}% [{r.pass_net}] | folds+ {r.folds_positive}/6 [{r.pass_folds}] | "
             f"raw gain/trade mean {100 * r.raw_gain_mean:.2f}% median {100 * r.raw_gain_median:.2f}% trimmed {100 * r.raw_gain_trimmed:.2f}% "
             f"win {100 * r.win_rate:.0f}% | hedged {100 * r.hedged_mean:.2f}% | cost {r.cost_round_trip_bps:.0f}bp | "
-            f"IC {r.ic_mean if r.ic_mean is None else round(r.ic_mean, 4)} t={r.ic_t if r.ic_t is None else round(r.ic_t, 2)} | "
+            f"top1% {r.tail_top1_excess if r.tail_top1_excess is None else round(100 * r.tail_top1_excess, 2)}% | IC {r.ic_mean if r.ic_mean is None else round(r.ic_mean, 4)} t={r.ic_t if r.ic_t is None else round(r.ic_t, 2)} | "
             f"other {json.dumps({h: {kk: round(v, 4) for kk, v in d.items()} for h, d in r.other_horizons.items()})} | {r.seconds}s"
         )
     print("family", FAMILY)
