@@ -10,10 +10,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 # qts is not on PyPI: install it editable from the sibling checkout first
 # (pip install -e ../quant-trading-system), then this package.
-dependencies = ["qts", "numpy>=1.26", "pandas>=2.1", "pyarrow>=14", "pyyaml>=6"]
+dependencies = ["qts", "numpy>=1.26", "pandas>=2.1", "pyarrow>=14", "pyyaml>=6", "duckdb>=0.10"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.16"]
+dev = ["pytest>=7", "ruff>=0.16", "bidask>=2.1"]  # bidask: reference implementation in tests
 
 [tool.setuptools.packages.find]
 include = ["qts_smallcap*"]

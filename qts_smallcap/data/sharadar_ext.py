@@ -27,6 +27,10 @@ used**; signal code joins on ``date <= t`` and never on the vendor dates kept be
            as SEP.  Stored under the vendor ticker: funds are not in the stock master, so there
            is no id resolution.  ``closeadj`` includes distributions, so a short's total-return
            P&L from ``closeadj`` already charges the dividends it pays.
+``SEP``    Daily stock OHLC (split-adjusted) -> ``sep_ohlc``: the high/low/open the qts store
+           does not keep, needed for the high-low spread estimators.  Known at the close of
+           ``date``; ids resolved by price date (prints outside a holder's range are dropped,
+           as in qts).
 =========  ===================================================================================
 
 Ids follow qts: ``ticker`` holds the panel id and ``sharadar_ticker`` the vendor ticker; rows
@@ -70,7 +74,9 @@ F13_LAG_DAYS = 45
 #: SF2 filings become usable the calendar day after ``filingdate`` (as SF1 ``datekey`` in qts).
 SF2_LAG_DAYS = 1
 #: processing order (small tables first)
-EXT_TABLES: tuple[str, ...] = ("SF3B", "SF3A", "SF2", "SFP", "SF3")
+EXT_TABLES: tuple[str, ...] = ("SF3B", "SF3A", "SF2", "SFP", "SF3", "SEP")
+#: dataset written for each table (default ``sharadar_<table>``)
+DATASET = {"SEP": "sep_ohlc"}
 #: load report inside this project's store
 REPORT_FILE = "_ext/load_report.json"
 
@@ -99,6 +105,7 @@ SF2_TEXT = (
 #: non-numeric columns of the 13F tables (everything else is parsed as a number)
 F13_TEXT = ("ticker", "investorid", "investorname", "securitytype", "name")
 SFP_NUMBERS = ("open", "high", "low", "close", "volume", "closeadj", "closeunadj")
+SEP_COLUMNS = ("ticker", "date", "open", "high", "low", "close", "volume", "closeunadj")
 
 
 # =============================================================================
@@ -212,6 +219,29 @@ def transform_sfp(chunk: pd.DataFrame) -> tuple[pd.DataFrame, Counts]:
     return d, Counts(rows=len(d) + bad, kept=len(d), bad_date=bad)
 
 
+def transform_sep_ohlc(chunk: pd.DataFrame, ranges: pd.DataFrame) -> tuple[pd.DataFrame, Counts]:
+    """SEP rows -> ``date``, ``ticker`` (id), split-adjusted ``open/high/low/close``, ``closeunadj``,
+    ``volume`` (vendor, split-adjusted)."""
+    d, bad = _dated(chunk, "date")
+    res, c = resolve_ids(d, ranges, date_col="date", gap_policy="drop")
+    out = res.rename(columns={"ticker": "sharadar_ticker", "id": "ticker"})
+    out = out[["date", "ticker", *[k for k in SEP_COLUMNS[2:] if k in out.columns]]].copy()
+    for col in SEP_COLUMNS[2:]:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce").astype(float)
+    out["ticker"] = _text(out["ticker"])
+    return out, _counts(c, bad)
+
+
+def find_files(bulk: str | os.PathLike[str], table: str) -> list[Path]:
+    """Bulk files for ``table``; for SEP a plain CSV beats the zip (same export, faster to parse)."""
+    if table == "SEP":
+        csvs = sorted(Path(bulk).glob("SHARADAR_SEP_*.csv"))
+        if csvs:
+            return [max(csvs, key=lambda p: p.stat().st_mtime)]
+    return find_table_files(bulk, table)
+
+
 # =============================================================================
 # Staging and writing (ParquetStore layout)
 # =============================================================================
@@ -294,10 +324,19 @@ def _transform_for(table: str, ranges: pd.DataFrame, lag_13f: int) -> Callable[[
         return lambda ch: transform_13f(ch, None, lag_13f)
     if table == "SFP":
         return transform_sfp
+    if table == "SEP":
+        return lambda ch: transform_sep_ohlc(ch, ranges)
     raise ValueError(f"unknown table {table!r}; known: {EXT_TABLES}")
 
 
-_VENDOR_DATE = {"SF2": "filingdate", "SF3": "calendardate", "SF3A": "calendardate", "SF3B": "calendardate", "SFP": "date"}
+_VENDOR_DATE = {
+    "SF2": "filingdate",
+    "SF3": "calendardate",
+    "SF3A": "calendardate",
+    "SF3B": "calendardate",
+    "SFP": "date",
+    "SEP": "date",
+}
 
 
 def load_table(
@@ -311,7 +350,7 @@ def load_table(
 ) -> TableReport:
     """Stream ``files`` of ``table`` into ``<store_root>/sharadar_<table>`` (replaces the dataset)."""
     table = table.upper()
-    name = f"sharadar_{table.lower()}"
+    name = DATASET.get(table, f"sharadar_{table.lower()}")
     rep = TableReport(table=table, dataset=name, sources=[str(p) for p in files])
     t0 = time.perf_counter()
     transform = _transform_for(table, ranges, lag_13f)
@@ -322,7 +361,8 @@ def load_table(
     try:
         for p in files:
             dtype = {"ticker": str} if table != "SF3B" else {"investorid": str}
-            for chunk in iter_csv_chunks(p, chunksize, dtype=dtype):
+            usecols = SEP_COLUMNS if table == "SEP" else None
+            for chunk in iter_csv_chunks(p, chunksize, usecols=usecols, dtype=dtype):
                 out, c = transform(chunk)
                 rep.counts.add(c)
                 if out.empty:
@@ -385,7 +425,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     reports = []
     order = [t for t in EXT_TABLES if t in {x.upper() for x in a.tables}]
     for table in order:
-        files = find_table_files(bulk, table)
+        files = find_files(bulk, table)
         if not files:
             log.warning("%s: no file under %s; skipped", table, bulk)
             continue
