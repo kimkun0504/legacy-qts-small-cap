@@ -110,6 +110,7 @@ def evaluate(
     event: bool = False,
     top_frac: float = 0.2,
     step_days: int = 5,
+    cost_model: SmallAccountCostModel | None = None,
 ) -> SignalResult:
     t0 = time.time()
     p = panel[panel["date"] >= pd.Timestamp(start)]
@@ -127,7 +128,7 @@ def evaluate(
     weekly = longs.groupby("date")[f"ex_{horizon}"].mean()
     lag = 2 * math.ceil(horizon / step_days)
     mean_ex, t, n_weeks = nw_t(weekly.to_numpy(), lag)
-    cost_bps = _costs(SmallAccountCostModel(), longs)
+    cost_bps = _costs(cost_model or SmallAccountCostModel(), longs)
     net = longs[f"ex_{horizon}"] - cost_bps / 1e4
     folds = np.array_split(weekly.to_numpy(), 6)
     folds_pos = int(sum(np.nanmean(f) > 0 for f in folds if len(f)))

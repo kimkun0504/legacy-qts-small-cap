@@ -41,3 +41,32 @@ holidays and whole-share rounding).
 4. 7 of the 10-trial budget are spent. The rest should go to hypotheses that fit the cost
    structure: holds of 2-6 months, where 28 bp is small against the move, and signals
    whose edge survives in the extreme names a small book must hold.
+
+## Trial 8: option A, slow composite, 63 days (addendum 3)
+Value (earnings yield, book-to-price), gross profitability, low asset growth and 12-1 momentum,
+monthly formation 2003-06 .. 2023-07, 242 months, 78,991 trades: excess -0.20 % per 63 days
+(NW t -0.70), net -0.44 %, 2/6 folds, top-1 % tail -2.63 %, IC 0.014 (t 1.27); raw gain per
+trade 1.78 % (median 0.97 %), hedged -0.31 %. **Fail.**
+
+## Trial 9: news-free reversal in micro caps (addendum 4)
+Ranks 3,001-6,000 (>= $2, >= $100k ADV; median $110M cap, $408k ADV, ~570 names a week);
+data-error guard dropped 73 five-day returns above +200 %. 1,051 weeks, 102,187 trades:
+excess **+0.32 % per 5 days, NW t 5.22, 6/6 folds, IC 0.031 (t 11.3)**, top-1 % +0.63 %; but
+the median round trip is 48 bp (thin closing auctions: impact on top of the $0.35 minimums)
+and net per trade is **-0.31 %**. **Fail (net).** Holm over nine tests: S4 micro p < 1e-6.
+
+Cost sensitivity (diagnostic, not a trial and not a pass):
+| Impact assumption | $10k sleeve ($321 positions) | $50k sleeve ($1,607) |
+|---|---|---|
+| Base (b_auction 0.3) | round trip 48 bp, net -0.31 % | 64 bp, net -0.50 % |
+| Half the impact (0.15) | 39 bp, net -0.20 % | 43 bp, net -0.26 % |
+| Fees only (no impact) | 29 bp, net -0.09 % | 21 bp, net -0.01 % |
+The trade-weighted gross excess is about 0.20 % (the weekly mean, 0.32 %, weights thin weeks
+more), so the effect does not cover even the fees of a weekly round trip at any sleeve size.
+
+## Where the search stands
+Nine trials, none passed; the budget rule in addendum 4 stops the search (trial 10 was
+reserved for a backtest of trial 9 if it passed). The one robust finding: short-term
+reversal without news is real in small and especially micro caps (gross +0.12 % and +0.32 %
+a week), but a weekly round trip costs more than it earns. Any next round should start from
+that cost arithmetic, be pre-registered as a new family, and count these nine trials.

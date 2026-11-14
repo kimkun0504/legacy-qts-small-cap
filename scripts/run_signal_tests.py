@@ -31,12 +31,23 @@ def main() -> int:
     ap.add_argument("--note", default="")
     ap.add_argument("--top-frac", type=float, default=0.2, help="long set = top fraction of the signal")
     ap.add_argument("--label", default=None, help="name to log (default: the signal id)")
+    ap.add_argument("--panel", default="", help="panel suffix, e.g. 'micro' -> weekly_panel_micro.parquet")
+    ap.add_argument("--signal-file", default=None, help="signal table name (default signal_<id>)")
+    ap.add_argument(
+        "--max-fwd", type=float, default=None, help="data-error guard: drop forward returns above this"
+    )
     a = ap.parse_args()
     rd = Path(LOCAL_STORE) / "_research"
-    panel = pd.read_parquet(rd / "weekly_panel.parquet")
-    panel = panel.merge(pd.read_parquet(rd / "sigma60.parquet"), on=["date", "ticker"], how="left")
+    sfx = f"_{a.panel}" if a.panel else ""
+    panel = pd.read_parquet(rd / f"weekly_panel{sfx}.parquet")
+    panel = panel.merge(pd.read_parquet(rd / f"sigma60{sfx}.parquet"), on=["date", "ticker"], how="left")
+    if a.max_fwd is not None:
+        for c in [c for c in panel.columns if c.startswith("fwd_")]:
+            bad = panel[c] > a.max_fwd
+            print(f"data-error guard: {int(bad.sum()):,} {c} values above {a.max_fwd:+.0%} dropped")
+            panel.loc[bad, c] = float("nan")
     for k in a.signals:
-        sig = pd.read_parquet(rd / f"signal_{k}.parquet")
+        sig = pd.read_parquet(rd / f"{a.signal_file or 'signal_' + k}.parquet")
         label = a.label or k
         step = 21 if k == "A" else 5  # monthly formation for the slow composite
         res = evaluate(
