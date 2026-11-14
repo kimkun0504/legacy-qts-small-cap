@@ -135,7 +135,7 @@ def s3_13f_change(
     return con.execute(q).df()
 
 
-def s4_reversal(con, shared: str, local: str) -> pd.DataFrame:
+def s4_reversal(con, shared: str, local: str, uni: str = "uni") -> pd.DataFrame:
     """Minus the FF48-industry-demeaned 5-day return; names with an 8-K / earnings event in the
     5 rows excluded."""
     _setup(con, shared, local)
@@ -147,7 +147,7 @@ def s4_reversal(con, shared: str, local: str) -> pd.DataFrame:
     q = f"""
         with r5 as (
             select u.date, u.ticker, x0.c / xb.c - 1 as r5, coalesce(i.industry, 'Other') ind
-            from uni u
+            from {uni} u
             join cal c on c.date = u.date
             join px2 x0 on x0.ticker = u.ticker and x0.d = c.d
             join px2 xb on xb.ticker = u.ticker and xb.d = c.d - 5

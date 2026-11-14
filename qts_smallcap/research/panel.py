@@ -53,6 +53,11 @@ def build_weekly_panel(
     start: str = PANEL_START,
     db: str = ":memory:",
     max_steps: int = 99,
+    uni: str = "uni",
+    rank_lo: int = RANK_LO,
+    rank_hi: int = RANK_HI,
+    min_price: float = MIN_PRICE,
+    min_adv: float = MIN_ADV,
 ) -> pd.DataFrame | None:
     """Return the weekly panel (see module docstring) for formation dates in ``[start, load_end]``.
 
@@ -111,15 +116,15 @@ def build_weekly_panel(
         window w63 as (partition by ticker order by cal.d rows between {ADV_WINDOW - 1} preceding and current row)""",
     )
     ok = ok and step(
-        "uni",
+        uni,
         f"""
-        create table uni as
+        create table {uni} as
         select * from (
             select date, d, ticker, c, craw, mcap, adv,
                    row_number() over (partition by date order by mcap desc, ticker) rk
             from px2
-            where friday and craw >= {MIN_PRICE} and adv >= {MIN_ADV} and n_adv >= {ADV_WINDOW // 2} and mcap > 0)
-        where rk between {RANK_LO} and {RANK_HI}""",
+            where friday and craw >= {min_price} and adv >= {min_adv} and n_adv >= {ADV_WINDOW // 2} and mcap > 0)
+        where rk between {rank_lo} and {rank_hi}""",
     )
     if not ok:
         con.close()
@@ -132,7 +137,7 @@ def build_weekly_panel(
     )
     df = con.execute(f"""
         select u.date, u.ticker, u.rk, u.mcap, u.craw, u.adv, u.c as c_f, e.c as c_e, ce.date as e_date, {sel}
-        from uni u
+        from {uni} u
         left join px2 e on e.ticker = u.ticker and e.d = u.d + 1
         left join cal ce on ce.d = u.d + 1
         {joins}""").df()
