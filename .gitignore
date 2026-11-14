@@ -1,0 +1,32 @@
+# --- Secrets: never commit ---
+.env
+.env.*
+!.env.example
+*accessKeys*
+*credentials*
+*.pem
+*.key
+
+# --- Data and outputs (the shared Sharadar store lives in ../quant-trading-system/data/store;
+#     this project's own tables live in ./data/store) ---
+/data/
+/runs/
+/paper/
+*.parquet
+*.tar.gz
+
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+
+# --- OS / editors ---
+.DS_Store
+.idea/
+.vscode/

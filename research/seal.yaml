@@ -1,0 +1,14 @@
+# Research holdout seal for the small-cap project (read by qts.research.seal through
+# $QTS_SEAL_FILE, which qts_smallcap.paths sets to this file).
+# Same holdout as the qts baseline: design uses data before 2023-11-09 only.
+# Lifting it: once per config, logged in this project's trial ledger.
+# Do not edit holdout_start.
+holdout_start: 2023-11-09
+reason: >-
+  Shared holdout with the qts baseline. The small-cap signals (earnings, insider,
+  13F, reversal) have not been tested on any data yet; the old model's mid-cap
+  results through 2026 are known and must not steer this design.
+sealed_by: repository owner (decision of 2026-11-14)
+sealed_at: 2026-11-14
+store_end: 2026-11-09
+inherit_family: []

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qts-smallcap"
+version = "0.1.0"
+description = "Small-cap strategy on the qts infrastructure (own store tables, ledger family, seal log, paper books)"
+readme = "README.md"
+requires-python = ">=3.10"
+# qts is not on PyPI: install it editable from the sibling checkout first
+# (pip install -e ../quant-trading-system), then this package.
+dependencies = ["qts", "numpy>=1.26", "pandas>=2.1", "pyarrow>=14", "pyyaml>=6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.16"]
+
+[tool.setuptools.packages.find]
+include = ["qts_smallcap*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["."]
+extend-exclude = ["runs", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM", "NPY", "PD", "C4", "RUF"]
+ignore = ["PD011", "PD008", "PD009", "PD010", "PD013", "PD015", "E501", "E741",
+          "RUF001", "RUF002", "RUF003", "SIM108"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["qts_smallcap"]
+known-third-party = ["qts"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers -q"
+testpaths = ["tests"]
+markers = ["slow: long tests", "integration: tests that need the real store"]
