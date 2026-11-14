@@ -28,7 +28,7 @@ import duckdb
 import pandas as pd
 from qts.core.config import CostConfig
 
-HORIZONS = (5, 10, 20)
+HORIZONS = (5, 10, 20, 63)
 RANK_LO, RANK_HI = 1001, 3000
 MIN_PRICE, MIN_ADV, ADV_WINDOW = 5.0, 1e6, 63
 PANEL_START = "2002-01-01"

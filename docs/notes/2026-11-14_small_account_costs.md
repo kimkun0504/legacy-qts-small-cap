@@ -31,8 +31,9 @@ bound in a continuous-session stress test.
 ## Base case: MOC execution
 The backtest fills at the official close, which is the closing-auction price, so an MOC
 order's cost against the backtest price is fees + auction impact (no half-spread).
-Closing-auction exchange fee: $0.0015/share placeholder (qts uses $0.001; still to verify
-against IBKR's NYSE/Nasdaq tables). Impact: `0.3 * sigma * Q^1.5 / (0.09 * ADV)^0.5`
+Closing-auction exchange fee: $0.0015/share, a conservative upper bound: NYSE's 2025 price
+list charges $0.0007-$0.0011 per MOC share by tier and NYSE Arca $0.0010 (checked 2026-11-14);
+qts uses $0.001. The difference is about $0.01 per order at these sizes. Impact: `0.3 * sigma * Q^1.5 / (0.09 * ADV)^0.5`
 (qts defaults).
 
 ## Round-trip cost by sleeve size (`scripts/cost_table.py`)
